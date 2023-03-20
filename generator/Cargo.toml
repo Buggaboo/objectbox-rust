@@ -15,3 +15,5 @@ genco = "0.17.3"
 flatbuffers = "22.10.26"
 prettyplease = "0.1.23"
 syn = { version = "1", default-features = false, features = ["full", "parsing"] }
+#lean-buffer-internal = { git = "https://github.com/Buggaboo/lean_buffer", branch = "main" }
+lean-buffer-internal = { path = "../../lean_buffer/internal" }

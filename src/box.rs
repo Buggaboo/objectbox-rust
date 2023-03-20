@@ -9,20 +9,20 @@ use crate::cursor::Cursor;
 use crate::query::builder::Builder;
 use crate::query::condition::Condition;
 use crate::query::Query;
-use crate::traits::{EntityFactoryExt, OBBlanket};
+use crate::traits::{FactoryBlanket, OBBlanket};
 use crate::util::{MutConstVoidPtr, NOT_FOUND_404};
 use flatbuffers::FlatBufferBuilder;
 
 // This Box type will confuse a lot of rust users of std::boxed::Box
 pub struct Box<'a, T: OBBlanket> {
-    pub(crate) helper: Rc<dyn EntityFactoryExt<T>>,
+    pub(crate) helper: Rc<dyn FactoryBlanket<T>>,
     pub(crate) obx_box: *mut OBX_box,
     builder: FlatBufferBuilder<'a>,
     // pub(crate) async_: std::boxed::Box<Async>, // TODO
 }
 
 impl<T: OBBlanket> Box<'_, T> {
-    pub(crate) fn new(store: *mut OBX_store, helper: Rc<dyn EntityFactoryExt<T>>) -> Self {
+    pub(crate) fn new(store: *mut OBX_store, helper: Rc<dyn FactoryBlanket<T>>) -> Self {
         unsafe {
             let obx_box = c::obx_box(store, helper.get_entity_id());
 

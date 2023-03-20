@@ -3,12 +3,16 @@ pub mod model_json;
 pub mod ob_consts;
 pub mod util;
 
+extern crate lean_buffer_internal; 
+
 use glob::glob;
 use model_json::{ModelEntity, ModelInfo};
 use rand;
 use rand::Rng;
 use std::collections::HashMap;
 use std::{fs, path::PathBuf};
+
+use lean_buffer_internal::util as lb_util;
 
 // TODO implement collision detection and evasion with predefined id and uid
 // TODO general idea: maintain a set of id and uid, when incrementing the counter,
@@ -244,7 +248,27 @@ pub fn generate_assets(out_path: &PathBuf, target_dir: &PathBuf) {
         .assign_id_to_entities()
         .assign_id_to_indexables();
 
-    ModelInfo::from_entities(entities.as_slice())
+    let ob_raw_path = out_path.join("fb_raw_gen.rs");
+    if !ob_raw_path.exists() {
+        let ob_binding_code = ModelInfo::from_entities(entities.as_slice())
         .write_json(&json_dest_path)
-        .generate_code(&ob_dest_path);
+        .generate_code();
+
+        fs::write(ob_raw_path, ob_binding_code)
+        .expect(
+            "There is a problem writing the generated rust code (1)"
+        );
+    }
+
+    if !ob_dest_path.exists() {
+        // join: ob binding code + generated code
+        let out = lb_util::glob_and_merge_generated_files(out_path, "*raw_gen.rs");
+        let pretty_out = lb_util::generate_pretty_plain_text(out.as_str());
+
+        // poop out
+        fs::write(ob_dest_path, pretty_out)
+        .expect(
+            "There is a problem writing the generated rust code (2)"
+        );
+    }
 }

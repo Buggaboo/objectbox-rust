@@ -2,14 +2,8 @@
 use std::marker::PhantomData;
 
 use crate::c;
-use flatbuffers::FlatBufferBuilder;
 
-pub trait FBOBBridge {
-    fn flatten(&self, builder: &mut FlatBufferBuilder);
-
-    // This is object-safe, but can't be dispatched on a (casted) trait object
-    // fn from_FB(store: &mut store::Store, table: &Table) -> Self; // factory method
-}
+use lean_buffer::traits::{AdapterExt, FactoryExt};
 
 pub trait IdExt {
     fn get_id(&self) -> c::obx_id;
@@ -28,16 +22,17 @@ pub trait RelationExt {
 */
 
 // Reference from Store and Box with this type
-pub trait OBBlanket: IdExt + FBOBBridge {}
-impl<T> OBBlanket for T where T: IdExt + FBOBBridge {}
+pub trait OBBlanket: IdExt + AdapterExt {}
+impl<T> OBBlanket for T where T: IdExt + AdapterExt {}
 
 use flatbuffers::Table;
 
-pub trait EntityFactoryExt<T: ?Sized> {
-    fn make(&self, table: &mut Table) -> T;
+pub trait EntityIdExt<T: ?Sized> {
     fn get_entity_id(&self) -> c::obx_schema_id;
-    fn new_entity(&self) -> T;
 }
+pub trait FactoryBlanket<T>: EntityIdExt<T> + FactoryExt<T> {}
+impl<T> FactoryBlanket<T> for T where T: EntityIdExt<T> + FactoryExt<T> {}
+
 pub struct Factory<T> {
     pub phantom_data: PhantomData<T>,
     pub schema_id: c::obx_schema_id,
@@ -47,8 +42,8 @@ pub fn make_from_trait<T>(map: anymap::AnyMap, table: &mut Table) -> Option<T>
 where
     T: 'static,
 {
-    if let Some(f) = map.get::<Box<dyn EntityFactoryExt<T>>>() {
-        return Some(f.make(table));
+    if let Some(f) = map.get::<Box<dyn FactoryBlanket<T>>>() {
+        return Some(f.inflate(table));
     }
     None
 }
@@ -65,14 +60,8 @@ fn blanket_directly_applied_on_entity_type() {
         id: c::obx_id,
     }
 
-    impl FBOBBridge for SomeEntity {
-        fn flatten(&self, builder: &mut FlatBufferBuilder<'_>) {}
-
-        // non-member method, static(?) factory function, can't dispatch on a trait
-        // fn from_FB(store: &mut store::Store, table: &Table) -> Self {
-        //   SomeEntity { id: 1 }
-        // }
-        // update: the from_fb function will be executed by the make_from_trait function
+    impl AdapterExt for SomeEntity {
+        fn flatten(&self, builder: &mut flatbuffers::FlatBufferBuilder) {}
     }
 
     impl IdExt for SomeEntity {
@@ -124,39 +113,50 @@ fn entity_factories() {
             id: c::obx_schema_id,
         }
 
-        impl EntityFactoryExt<Entity0> for Factory<Entity0> {
-            fn make(&self, table: &mut Table) -> Entity0 {
-                Entity0 { id: 0 }
-            }
+        impl EntityIdExt<Entity0> for Factory<Entity0> {
             fn get_entity_id(&self) -> c::obx_schema_id {
                 0
             }
-            fn new_entity(&self) -> Entity0 {
+        }
+
+        impl FactoryExt<Entity0> for Factory<Entity0> {
+            fn inflate(&self, table: &mut Table) -> Entity0 {
+                Entity0 { id: 0 }
+            }
+            fn new_object(&self) -> Entity0 {
                 Entity0 { id: 0 }
             }
         }
 
-        impl EntityFactoryExt<Entity1> for Factory<Entity1> {
-            fn make(&self, table: &mut Table) -> Entity1 {
-                Entity1 { id: 1 }
-            }
+        impl FactoryBlanket<Entity0> for Factory<Entity0> {}
+
+        impl EntityIdExt<Entity1> for Factory<Entity1> {
             fn get_entity_id(&self) -> c::obx_schema_id {
-                1
-            }
-            fn new_entity(&self) -> Entity1 {
-                Entity1 { id: 0 }
+                0
             }
         }
 
-        impl EntityFactoryExt<Entity2> for Factory<Entity2> {
-            fn make(&self, table: &mut Table) -> Entity2 {
-                Entity2 { id: 2 }
+        impl FactoryExt<Entity1> for Factory<Entity1> {
+            fn inflate(&self, table: &mut Table) -> Entity1 {
+                Entity1 { id: 1 }
             }
+            fn new_object(&self) -> Entity1 {
+                Entity1 { id: 1 }
+            }
+        }
+
+        impl EntityIdExt<Entity2> for Factory<Entity2> {
             fn get_entity_id(&self) -> c::obx_schema_id {
                 2
             }
-            fn new_entity(&self) -> Entity2 {
-                Entity2 { id: 0 }
+        }
+
+        impl FactoryExt<Entity2> for Factory<Entity2> {
+            fn inflate(&self, table: &mut Table) -> Entity2 {
+                Entity2 { id: 2 }
+            }
+            fn new_object(&self) -> Entity2 {
+                Entity2 { id: 2 }
             }
         }
 
@@ -176,9 +176,9 @@ fn entity_factories() {
             schema_id: 3,
         };
 
-        let e0 = f0.make(table);
-        let e1 = f1.make(table);
-        let e2 = f2.make(table);
+        let e0 = f0.inflate(table);
+        let e1 = f1.inflate(table);
+        let e2 = f2.inflate(table);
 
         assert_eq!(e0.id, 0);
         assert_eq!(e1.id, 1);
@@ -196,9 +196,9 @@ fn entity_factories() {
             let f1 = map.get::<Factory<Entity1>>();
             let f2 = map.get::<Factory<Entity2>>();
 
-            let e0 = f0.unwrap().make(table);
-            let e1 = f1.unwrap().make(table);
-            let e2 = f2.unwrap().make(table);
+            let e0 = f0.unwrap().inflate(table);
+            let e1 = f1.unwrap().inflate(table);
+            let e2 = f2.unwrap().inflate(table);
 
             assert_eq!(e0.id, 0);
             assert_eq!(e1.id, 1);
@@ -213,7 +213,8 @@ fn entity_factories() {
                 schema_id: 0,
             };
 
-            map.insert(Box::new(f0) as Box<dyn EntityFactoryExt<Entity0>>);
+
+            map.insert(Box::new(f0) as Box<dyn FactoryBlanket<Entity0>>);
 
             let e0 = make_from_trait::<Entity0>(map, table);
             assert_eq!(e0.is_some(), true); // \o/
@@ -226,7 +227,7 @@ fn entity_factories() {
                 T: 'static,
             {
                 if let Some(f) = map.get::<Factory<T>>() {
-                    // return f.make (nope, unknown trait)
+                    // return f.inflate (nope, unknown trait)
                 }
                 None
             }

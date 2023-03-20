@@ -4,15 +4,13 @@ use std::{ptr, rc::Rc, slice::from_raw_parts};
 use crate::{
     c::{self, *},
     error,
-    traits::EntityFactoryExt,
+    traits::FactoryBlanket,
     txn::Tx,
     util::{MutConstVoidPtr, ToCVoid, NOT_FOUND_404},
 };
 
-// The best article ever on ffi
-// https://blog.guillaume-gomez.fr/articles/2021-07-29+Interacting+with+data+from+FFI+in+Rust
 pub(crate) struct Cursor<T> {
-    helper: Rc<dyn EntityFactoryExt<T>>,
+    helper: Rc<dyn FactoryBlanket<T>>,
     pub(crate) obx_cursor: *mut c::OBX_cursor,
     tx: Tx,
 }
@@ -34,7 +32,7 @@ impl<T> Cursor<T> {
     pub(crate) fn new(
         is_mut: bool,
         store: *mut c::OBX_store,
-        helper: Rc<dyn EntityFactoryExt<T>>,
+        helper: Rc<dyn FactoryBlanket<T>>,
     ) -> error::Result<Self> {
         let entity_id = helper.get_entity_id();
         let tx = if is_mut {
@@ -63,7 +61,7 @@ impl<T> Cursor<T> {
 
         // TODO check speed improvement if table is recycled
         let mut table = flatbuffers::Table::new(data_slice, first_offset);
-        self.helper.make(&mut table)
+        self.helper.inflate(&mut table)
     }
 
     pub(crate) fn get_entity(&mut self, id: c::obx_id) -> error::Result<Option<T>> {

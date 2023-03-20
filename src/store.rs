@@ -9,7 +9,7 @@ use crate::c::{self, *};
 use crate::error::{self, Error};
 
 use crate::opt::Opt;
-use crate::traits::{EntityFactoryExt, OBBlanket};
+use crate::traits::{FactoryBlanket, OBBlanket};
 use crate::util::ToCChar;
 
 // Caveat: copy and drop are mutually exclusive
@@ -48,7 +48,7 @@ impl Store {
     }
 
     pub fn get_box<T: 'static + OBBlanket>(&self) -> error::Result<crate::r#box::Box<T>> {
-        let helper = if let Some(h) = self.trait_map.get::<Rc<dyn EntityFactoryExt<T>>>() {
+        let helper = if let Some(h) = self.trait_map.get::<Rc<dyn FactoryBlanket<T>>>() {
             h
         } else {
             Error::new_local("Error: unable to get entity helper").as_result()?

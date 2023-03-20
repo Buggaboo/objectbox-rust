@@ -122,12 +122,13 @@ impl<Entity: OBBlanket> BitOr for Condition<Entity> {
 #[cfg(test)]
 mod tests {
     use flatbuffers::FlatBufferBuilder;
+    use lean_buffer::traits::AdapterExt;
 
     use super::*;
 
     use crate::{
         c,
-        traits::{FBOBBridge, IdExt},
+        traits::IdExt,
     };
 
     struct SomeEntity {
@@ -135,7 +136,7 @@ mod tests {
         t_string: String,
     }
 
-    impl FBOBBridge for SomeEntity {
+    impl AdapterExt for SomeEntity {
         fn flatten(&self, _: &mut FlatBufferBuilder<'_>) {}
     }
 

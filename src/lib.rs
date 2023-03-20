@@ -1,9 +1,11 @@
 #![allow(dead_code)]
 // pub extern crate predicates;
 pub extern crate anymap as map;
-pub extern crate flatbuffers as flatbuffers;
 pub extern crate objectbox_generator as generator;
 pub extern crate objectbox_macros as macros;
+pub extern crate lean_buffer;
+
+extern crate flatbuffers as flatbuffers;
 
 pub mod r#box;
 pub mod c;

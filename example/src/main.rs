@@ -33,6 +33,7 @@ fn main() {
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use serial_test::serial;
@@ -41,3 +42,4 @@ mod tests {
     #[serial]
     fn test() {}
 }
+*/

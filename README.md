@@ -79,4 +79,4 @@ rust code to facilitate and access the basic and/or advanced features, in `objec
 
 ## TODO (Nice to haves)
 * Reimplement macros with [darling's](https://github.com/TedDriggs/darling/blob/master/examples/consume_fields.rs)
-* Integrate: [cleaner abstractions (example how)](https://github.com/Buggaboo/lean_buffer/blob/main/macros/src/lib.rs).
+

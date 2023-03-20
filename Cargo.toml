@@ -5,6 +5,10 @@ authors = [""]
 edition = "2021"
 
 [dependencies]
+#lean-buffer = { git = "https://github.com/Buggaboo/lean_buffer", branch = "main" }
+#lean-buffer-internal = { git = "https://github.com/Buggaboo/lean_buffer", branch = "main" }
+lean-buffer = { path = "../lean_buffer" }
+lean-buffer-internal = { path = "../lean_buffer/internal" }
 objectbox-macros = { path = "macros" }
 objectbox-generator = { path = "generator" }
 chrono = "0.4"

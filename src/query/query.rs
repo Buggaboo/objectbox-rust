@@ -2,7 +2,7 @@ use crate::c;
 use crate::c::*;
 use crate::cursor::Cursor;
 use crate::error;
-use crate::traits::EntityFactoryExt;
+use crate::traits::FactoryBlanket;
 use crate::traits::OBBlanket;
 use crate::util::test_fn_ptr_on_char_ptr;
 use core::slice;
@@ -26,14 +26,14 @@ impl<T: OBBlanket> Drop for Query<T> {
 pub struct Query<T: OBBlanket> {
     obx_query: *mut OBX_query,
     obx_store: *mut OBX_store,
-    pub(crate) helper: Rc<dyn EntityFactoryExt<T>>,
+    pub(crate) helper: Rc<dyn FactoryBlanket<T>>,
     phantom_data: PhantomData<T>,
 }
 
 impl<T: OBBlanket> Query<T> {
     pub(crate) fn new(
         obx_store: *mut OBX_store,
-        helper: Rc<dyn EntityFactoryExt<T>>,
+        helper: Rc<dyn FactoryBlanket<T>>,
         builder: *mut OBX_query_builder,
     ) -> error::Result<Self> {
         unsafe {
@@ -191,7 +191,7 @@ impl<T: OBBlanket> Query<T> {
             vec.push(
                 cursor
                     .get_entity(id)?
-                    .map_or(self.helper.new_entity(), |e| e),
+                    .map_or(self.helper.new_object(), |e| e),
             );
         }
         Ok(vec)

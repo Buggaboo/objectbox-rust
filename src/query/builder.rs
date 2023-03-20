@@ -12,7 +12,7 @@ use crate::{
     c::{self, *},
     error,
     r#box::Box,
-    traits::{EntityFactoryExt, OBBlanket},
+    traits::{FactoryBlanket, OBBlanket},
     util::*,
 };
 
@@ -32,7 +32,7 @@ impl<T: OBBlanket> Drop for Builder<T> {
 
 pub struct Builder<T: OBBlanket> {
     obx_store: *mut OBX_store,
-    helper: Rc<dyn EntityFactoryExt<T>>,
+    helper: Rc<dyn FactoryBlanket<T>>,
     property_id: obx_schema_id,
     obx_query_builder: *mut OBX_query_builder,
     case_sensitive: bool,

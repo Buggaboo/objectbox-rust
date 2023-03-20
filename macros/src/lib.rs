@@ -5,7 +5,9 @@ extern crate proc_macro;
 extern crate proc_macro2;
 extern crate quote;
 extern crate syn;
+extern crate lean_buffer_internal;
 
+use darling::FromDeriveInput;
 use objectbox_generator::id;
 use proc_macro::TokenStream;
 
@@ -14,9 +16,17 @@ mod entity;
 mod path_visitor;
 mod property;
 
+use std::env;
+
 use entity::Entity;
 use syn::Meta::NameValue;
 use syn::{parse_macro_input, AttributeArgs, DeriveInput};
+
+use std::str::FromStr;
+
+use lean_buffer_internal::core::InputReceiver;
+
+use std::path::{Path, PathBuf};
 
 // extension trait for IdUid, reuse structs
 trait IdUidMacroHelper {
@@ -59,8 +69,27 @@ impl IdUidMacroHelper for id::IdUid {
     }
 }
 
+fn generate_fb_bindings(input: TokenStream) {
+    let mut out = TokenStream::new();
+    out.extend(TokenStream::from_str("#[derive(LeanBufferInternal)]"));
+    out.extend(input);
+    let parsed = syn::parse::<DeriveInput>(out).expect("crash");
+    let mut receiver = InputReceiver::from_derive_input(&parsed).expect("crash");
+    // receiver.write_raw(dest_path, Some("objectbox::traits".to_string()), Some("Factory".to_string()), Some("f".to_string()));
+    receiver.write_raw_to_out_dir(
+        Some("objectbox::traits".to_string()),
+        Some("Factory".to_string()),
+        Some("f".to_string()),
+        // Some("f".to_string())
+    );
+}
+
 fn _entity(input: TokenStream, args: Option<TokenStream>) -> TokenStream {
     // print_token_stream("all: ", input.clone());
+
+    let out_dir = Path::new(&env::var_os("OUT_DIR").expect("OUT_DIR unknown")).to_path_buf();
+
+    generate_fb_bindings(input.clone());
 
     let struct_clone = input.clone();
     // all parse_macro_input! macro have to happen inside a proc_macro_attribute(d) function
@@ -77,7 +106,7 @@ fn _entity(input: TokenStream, args: Option<TokenStream>) -> TokenStream {
     }
 
     let entity = Entity::from_entity_name_and_fields(id, struct_info);
-    entity.serialize().write();
+    entity.serialize().write(&out_dir);
 
     // dbg!(entity);
 
@@ -118,7 +147,6 @@ pub fn entity(args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 // TODO fix this, also allow for id/uid parameters to entity
-// TODO look into [darling](https://crates.io/crates/darling)
 // #[proc_macro_derive(OB, attributes(entity))]
 // #[proc_macro_derive(OB, attributes(id, unique, index))]
 // pub fn derive_ob_entity(input: TokenStream) -> TokenStream {

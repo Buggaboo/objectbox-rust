@@ -6,9 +6,8 @@ use genco::Tokens;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
-use std::env;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::ob_consts;
 use crate::util::StringHelper;
@@ -112,19 +111,14 @@ pub struct ModelEntity {
 }
 
 impl ModelEntity {
-    pub fn write(&mut self) {
-        if let Some(out_dir) = env::var_os("OUT_DIR") {
-            let dest_path =
-                Path::new(&out_dir).join(format!("{}.objectbox.info", self.name.clone()));
-            if let Ok(json) = serde_json::to_string(self) {
-                let result = fs::write(&dest_path, json.as_str());
-                match result {
-                    Err(error) => panic!("{}", error),
-                    _ => {}
-                }
+    pub fn write(&mut self, out_dir: &PathBuf) {
+        if let Ok(json) = serde_json::to_string(self) {
+            let dest_path = out_dir.join(format!("{}.objectbox.info", self.name.clone()));
+            let result = fs::write(&dest_path, json.as_str());
+            match result {
+                Err(error) => panic!("{}", error),
+                _ => {}
             }
-        } else {
-            panic!("Missing OUT_DIR environment variable, due to calling this function outside of build.rs");
         }
     }
 
@@ -179,118 +173,118 @@ impl ModelProperty {
         q
     }
 
-    pub(crate) fn as_struct_property_default(&self) -> Tokens<Rust> {
-        let name = &self.name;
-        match self.type_field {
-            ob_consts::OBXPropertyType_StringVector => quote! {
-                $name: Vec::<String>::new()
-            },
-            ob_consts::OBXPropertyType_ByteVector => quote! {
-                $name: Vec::<u8>::new()
-            },
-            ob_consts::OBXPropertyType_String => quote! {
-                $name: String::from("")
-            },
-            ob_consts::OBXPropertyType_Char => quote! {
-                $name: char::from(0)
-            },
-            ob_consts::OBXPropertyType_Bool => quote! {
-                $name: false
-            },
-            ob_consts::OBXPropertyType_Float => quote! {
-                $name: 0.0
-            },
-            ob_consts::OBXPropertyType_Double => quote! {
-                $name: 0.0
-            },
-            // rest of the integer types
-            _ => quote! {
-                $name: 0
-            },
-        }
-    }
+    // pub(crate) fn as_struct_property_default(&self) -> Tokens<Rust> {
+    //     let name = &self.name;
+    //     match self.type_field {
+    //         ob_consts::OBXPropertyType_StringVector => quote! {
+    //             $name: Vec::<String>::new()
+    //         },
+    //         ob_consts::OBXPropertyType_ByteVector => quote! {
+    //             $name: Vec::<u8>::new()
+    //         },
+    //         ob_consts::OBXPropertyType_String => quote! {
+    //             $name: String::from("")
+    //         },
+    //         ob_consts::OBXPropertyType_Char => quote! {
+    //             $name: char::from(0)
+    //         },
+    //         ob_consts::OBXPropertyType_Bool => quote! {
+    //             $name: false
+    //         },
+    //         ob_consts::OBXPropertyType_Float => quote! {
+    //             $name: 0.0
+    //         },
+    //         ob_consts::OBXPropertyType_Double => quote! {
+    //             $name: 0.0
+    //         },
+    //         // rest of the integer types
+    //         _ => quote! {
+    //             $name: 0
+    //         },
+    //     }
+    // }
 
-    pub(crate) fn as_assigned_property(&self, offset: usize) -> Tokens<Rust> {
-        let fuo = &rust::import("objectbox::flatbuffers", "ForwardsUOffset");
-        let fvec = &rust::import("objectbox::flatbuffers", "Vector");
+    // pub(crate) fn as_assigned_property(&self, offset: usize) -> Tokens<Rust> {
+    //     let fuo = &rust::import("flatbuffers", "ForwardsUOffset");
+    //     let fvec = &rust::import("flatbuffers", "Vector");
 
-        let name = &self.name;
-        if let Some(f) = self.flags {
-            if f == (ob_consts::OBXPropertyFlags_ID_SELF_ASSIGNABLE
-                | ob_consts::OBXPropertyFlags_ID)
-            {
-                let t: Tokens<Rust> = quote! {
-                    *$name = table.get::<u64>($offset, Some(0)).unwrap();
-                };
-                return t;
-            }
-        }
+    //     let name = &self.name;
+    //     if let Some(f) = self.flags {
+    //         if f == (ob_consts::OBXPropertyFlags_ID_SELF_ASSIGNABLE
+    //             | ob_consts::OBXPropertyFlags_ID)
+    //         {
+    //             let t: Tokens<Rust> = quote! {
+    //                 *$name = table.get::<u64>($offset, Some(0)).unwrap();
+    //             };
+    //             return t;
+    //         }
+    //     }
 
-        let name = &self.name;
-        match self.type_field {
-            ob_consts::OBXPropertyType_StringVector => quote! {
-                let fb_vec_$name = table.get::<$fuo<$fvec<$fuo<&str>>>>($offset, None);
-                if let Some(sv) = fb_vec_$name {
-                    *$name = sv.iter().map(|s|s.to_string()).collect();
-                }
-            },
-            ob_consts::OBXPropertyType_ByteVector => quote! {
-                let fb_vec_$name = table.get::<$fuo<$fvec<u8>>>($offset, None);
-                if let Some(bv) = fb_vec_$name {
-                    *$name = bv.bytes().to_vec();
-                }
-            },
-            // TODO research clear the buffer, and read the slice instead
-            // TODO see what's faster
-            ob_consts::OBXPropertyType_String => quote! {
-                if let Some(s) = table.get::<$fuo<&str>>($offset, None) {
-                    *$name = s.to_string();
-                }
-            },
-            // TODO will this work with objectbox? rust char = 4x u8 = 32 bits
-            // TODO write test for this specifically
-            ob_consts::OBXPropertyType_Char => quote! {
-                let $(name)_u32 = table.get::<u32>($offset, Some(0)).unwrap();
-                if let Some(c) = std::char::from_u32($(name)_u32) {
-                    *$name = c;
-                }
-            },
-            ob_consts::OBXPropertyType_Bool => quote! {
-                *$name = table.get::<bool>($offset, Some(false)).unwrap();
-            },
-            ob_consts::OBXPropertyType_Float => quote! {
-                *$name = table.get::<f32>($offset, Some(0.0)).unwrap();
-            },
-            ob_consts::OBXPropertyType_Double => quote! {
-                *$name = table.get::<f64>($offset, Some(0.0)).unwrap();
-            },
-            // rest of the integer types
-            _ => {
-                let unsigned_flag = match self.flags {
-                    Some(f) => f,
-                    _ => 0,
-                };
-                let sign: Tokens<Rust> = if (unsigned_flag & ob_consts::OBXPropertyFlags_UNSIGNED)
-                    == ob_consts::OBXPropertyFlags_UNSIGNED
-                {
-                    quote!(u)
-                } else {
-                    quote!(i)
-                };
+    //     let name = &self.name;
+    //     match self.type_field {
+    //         ob_consts::OBXPropertyType_StringVector => quote! {
+    //             let fb_vec_$name = table.get::<$fuo<$fvec<$fuo<&str>>>>($offset, None);
+    //             if let Some(sv) = fb_vec_$name {
+    //                 *$name = sv.iter().map(|s|s.to_string()).collect();
+    //             }
+    //         },
+    //         ob_consts::OBXPropertyType_ByteVector => quote! {
+    //             let fb_vec_$name = table.get::<$fuo<$fvec<u8>>>($offset, None);
+    //             if let Some(bv) = fb_vec_$name {
+    //                 *$name = bv.bytes().to_vec();
+    //             }
+    //         },
+    //         // TODO research clear the buffer, and read the slice instead
+    //         // TODO see what's faster
+    //         ob_consts::OBXPropertyType_String => quote! {
+    //             if let Some(s) = table.get::<$fuo<&str>>($offset, None) {
+    //                 *$name = s.to_string();
+    //             }
+    //         },
+    //         // TODO will this work with objectbox? rust char = 4x u8 = 32 bits
+    //         // TODO write test for this specifically
+    //         ob_consts::OBXPropertyType_Char => quote! {
+    //             let $(name)_u32 = table.get::<u32>($offset, Some(0)).unwrap();
+    //             if let Some(c) = std::char::from_u32($(name)_u32) {
+    //                 *$name = c;
+    //             }
+    //         },
+    //         ob_consts::OBXPropertyType_Bool => quote! {
+    //             *$name = table.get::<bool>($offset, Some(false)).unwrap();
+    //         },
+    //         ob_consts::OBXPropertyType_Float => quote! {
+    //             *$name = table.get::<f32>($offset, Some(0.0)).unwrap();
+    //         },
+    //         ob_consts::OBXPropertyType_Double => quote! {
+    //             *$name = table.get::<f64>($offset, Some(0.0)).unwrap();
+    //         },
+    //         // rest of the integer types
+    //         _ => {
+    //             let unsigned_flag = match self.flags {
+    //                 Some(f) => f,
+    //                 _ => 0,
+    //             };
+    //             let sign: Tokens<Rust> = if (unsigned_flag & ob_consts::OBXPropertyFlags_UNSIGNED)
+    //                 == ob_consts::OBXPropertyFlags_UNSIGNED
+    //             {
+    //                 quote!(u)
+    //             } else {
+    //                 quote!(i)
+    //             };
 
-                let bits: Tokens<Rust> = match self.type_field {
-                    ob_consts::OBXPropertyType_Byte => quote!(8),
-                    ob_consts::OBXPropertyType_Short => quote!(16),
-                    ob_consts::OBXPropertyType_Int => quote!(32),
-                    ob_consts::OBXPropertyType_Long => quote!(64),
-                    _ => panic!("Unknown OBXPropertyType"),
-                };
-                quote! {
-                    *$name = table.get::<$sign$bits>($offset, Some(0)).unwrap();
-                }
-            }
-        }
-    }
+    //             let bits: Tokens<Rust> = match self.type_field {
+    //                 ob_consts::OBXPropertyType_Byte => quote!(8),
+    //                 ob_consts::OBXPropertyType_Short => quote!(16),
+    //                 ob_consts::OBXPropertyType_Int => quote!(32),
+    //                 ob_consts::OBXPropertyType_Long => quote!(64),
+    //                 _ => panic!("Unknown OBXPropertyType"),
+    //             };
+    //             quote! {
+    //                 *$name = table.get::<$sign$bits>($offset, Some(0)).unwrap();
+    //             }
+    //         }
+    //     }
+    // }
 
     pub(crate) fn to_sorting_priority(&self) -> usize {
         match self.type_field {

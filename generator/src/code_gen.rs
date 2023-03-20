@@ -1,7 +1,5 @@
 use core::panic;
 use std::collections::HashSet;
-use std::fs;
-use std::path::PathBuf;
 
 use genco::fmt;
 use genco::prelude::*;
@@ -182,8 +180,8 @@ impl CodeGenEntityExt for ModelEntity {
 
     fn generate_fb_trait(&self) -> Tokens<Rust> {
         let entity = &rust::import("self", &self.name);
-        let bridge_trait = &rust::import("objectbox::traits", "FBOBBridge");
-        let flatbuffer_builder = &rust::import("objectbox::flatbuffers", "FlatBufferBuilder");
+        let bridge_trait = &rust::import("lean_buffer::traits", "AdapterExt");
+        let flatbuffer_builder = &rust::import("flatbuffers::builder", "FlatBufferBuilder");
 
         let unnested_props: Vec<Tokens<Rust>> = self
             .properties
@@ -222,22 +220,23 @@ impl CodeGenEntityExt for ModelEntity {
     }
 
     fn generate_ob_trait(&self) -> Tokens<Rust> {
-        let fb_table = &rust::import("objectbox::flatbuffers", "Table");
+        // let fb_table = &rust::import("flatbuffers::table", "Table");
         let factory = &rust::import("objectbox::traits", "Factory");
-        let factory_helper = &rust::import("objectbox::traits", "EntityFactoryExt");
+        let entity_id_ext = &rust::import("objectbox::traits", "EntityIdExt");
+        let factory_blanket = &rust::import("objectbox::traits", "FactoryBlanket");
         let entity = &rust::import("self", &self.name);
 
         let schema_id = &rust::import("objectbox::c", "obx_schema_id");
 
-        let destructured_props = self
-            .properties
-            .iter()
-            .map(|p| p.as_struct_property_default());
-        let assigned_props = self
-            .properties
-            .iter()
-            .enumerate()
-            .map(|p| p.1.as_assigned_property(p.0 * 2 + 4));
+        // let destructured_props = self
+        //     .properties
+        //     .iter()
+        //     .map(|p| p.as_struct_property_default());
+        // let assigned_props = self
+        //     .properties
+        //     .iter()
+        //     .enumerate()
+        //     .map(|p| p.1.as_assigned_property(p.0 * 2 + 4));
 
         let mut id = String::new();
         for c in self.id.chars() {
@@ -250,29 +249,30 @@ impl CodeGenEntityExt for ModelEntity {
 
         // TODO Store will be used for relations later
         quote! {
-          impl $factory_helper<$entity> for $factory<$entity> {
-            fn make(&self, table: &mut $fb_table) -> $entity {
-              let mut object = self.new_entity();
-              // destructure
-              let $entity {
-                $(for p in &self.properties join (, ) => $(&p.name))
-              } = &mut object;
-              unsafe {
-                $(for p in assigned_props join () => $(p))
-              }
-              object
-            }
+          impl $entity_id_ext<$entity> for $factory<$entity> {
+            // fn make(&self, table: &mut $fb_table) -> $entity {
+            //   let mut object = self.new_entity();
+            //   // destructure
+            //   let $entity {
+            //     $(for p in &self.properties join (, ) => $(&p.name))
+            //   } = &mut object;
+            //   unsafe {
+            //     $(for p in assigned_props join () => $(p))
+            //   }
+            //   object
+            // }
 
             fn get_entity_id(&self) -> $schema_id {
               self.schema_id
             }
 
-            fn new_entity(&self) -> $entity {
-              $entity {
-                $(for p in destructured_props join (, ) => $(p))
-              }
-            }
+            // fn new_entity(&self) -> $entity {
+            //   $entity {
+            //     $(for p in destructured_props join (, ) => $(p))
+            //   }
+            // }
           }
+          impl $factory_blanket<$(entity)> for $factory<$(entity)> {}
         }
     }
 
@@ -316,7 +316,7 @@ impl CodeGenEntityExt for ModelEntity {
 
 // TODO Fix visibility on all the trait extensions
 pub(crate) trait CodeGenExt {
-    fn generate_code(&self, path: &PathBuf);
+    fn generate_code(&self) -> String;
 }
 
 fn generate_model_fn(model_info: &ModelInfo) -> Tokens<Rust> {
@@ -378,7 +378,7 @@ fn generate_model_fn(model_info: &ModelInfo) -> Tokens<Rust> {
 fn generate_factory_map_fn(model_info: &ModelInfo) -> Tokens<Rust> {
     let any_map = &rust::import("objectbox::map", "AnyMap");
     let factory = &rust::import("objectbox::traits", "Factory");
-    let factory_helper = &rust::import("objectbox::traits", "EntityFactoryExt");
+    let factory_helper = &rust::import("objectbox::traits", "FactoryBlanket");
     let rc = &rust::import("std::rc", "Rc");
     let phantom = &rust::import("std::marker", "PhantomData");
 
@@ -415,12 +415,12 @@ fn generate_factory_map_fn(model_info: &ModelInfo) -> Tokens<Rust> {
 }
 
 impl CodeGenExt for ModelInfo {
-    fn generate_code(&self, dest_path: &PathBuf) {
+    fn generate_code(&self) -> String {
         let tokens = &mut rust::Tokens::new();
 
         for e in self.entities.iter() {
             tokens.append(e.generate_id_trait());
-            tokens.append(e.generate_fb_trait());
+            // tokens.append(e.generate_fb_trait());
             tokens.append(e.generate_ob_trait());
             tokens.append(e.generate_query_trait_impls());
         }
@@ -430,30 +430,27 @@ impl CodeGenExt for ModelInfo {
 
         let vector = tokens_to_string(tokens);
 
-        let utf = match std::str::from_utf8(vector.as_slice()) {
-            Ok(utf) => utf,
-            Err(error) => panic!(
-                "There is a problem with converting bytes to utf8: {}",
-                error
-            ),
-        };
+        let utf = std::str::from_utf8(vector.as_slice())
+            .expect(
+                "There is a problem with converting bytes to utf8"
+            ).to_string();
 
-        let syntax_tree = match syn::parse_file(utf) {
-            Ok(parsed) => parsed,
-            Err(error) => panic!(
-                "There is a problem with parsing the generated rust code: {}",
-                error
-            ),
-        };
+        utf
+
+        // let syntax_tree = match syn::parse_file(&utf) {
+        //     Ok(parsed) => parsed,
+        //     Err(error) => panic!(
+        //         "There is a problem with parsing the generated rust code: {}",
+        //         error
+        //     ),
+        // };
 
         // it seems that genco's code formatting is broken on stable
-        let formatted = prettyplease::unparse(&syntax_tree);
+        // let formatted = prettyplease::unparse(&syntax_tree);
 
-        if let Err(error) = fs::write(&dest_path, formatted.as_str()) {
-            panic!(
-                "There is a problem writing the generated rust code: {:?}",
-                error
-            );
-        }
+        // fs::write(&dest_path, utf)
+        //     .expect(
+        //         "There is a problem writing the generated rust code"
+        //     );
     }
 }

@@ -500,6 +500,8 @@ impl<Entity: OBBlanket> StringBlanket<Entity> for Entity where
 mod tests {
     use std::collections::HashMap;
 
+    use lean_buffer::traits::AdapterExt;
+
     use crate::traits;
 
     use super::*;
@@ -519,7 +521,7 @@ mod tests {
         fn set_id(&mut self, id: c::obx_id) {}
     }
 
-    impl traits::FBOBBridge for TEntity {
+    impl AdapterExt for TEntity {
         fn flatten(&self, builder: &mut flatbuffers::FlatBufferBuilder) {}
     }
 
@@ -530,7 +532,7 @@ mod tests {
         fn set_id(&mut self, id: c::obx_id) {}
     }
 
-    impl traits::FBOBBridge for TEntity2 {
+    impl AdapterExt for TEntity2 {
         fn flatten(&self, builder: &mut flatbuffers::FlatBufferBuilder) {}
     }
 
