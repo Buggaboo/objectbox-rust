@@ -77,6 +77,10 @@ rust code to facilitate and access the basic and/or advanced features, in `objec
 ## Guidelines
 * Don't rely on nightly features, we'll take whatever edition 2021 has to offer
 
-## TODO (Nice to haves)
+## TODO
+* Apply `Arc<str>` for const-ish strs
+* Reduce number of mallocs
+* Use [anyhow](https://docs.rs/anyhow/latest/anyhow/) to handle errors
+* Remove cruft - all attempts to optimize prematurely
 * Reimplement macros with [darling's](https://github.com/TedDriggs/darling/blob/master/examples/consume_fields.rs)
 * Integrate: [cleaner abstractions (example how)](https://github.com/Buggaboo/lean_buffer/blob/main/macros/src/lib.rs).
